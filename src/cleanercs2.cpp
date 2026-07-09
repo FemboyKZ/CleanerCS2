@@ -81,7 +81,7 @@ bool SetupHook()
 #ifdef WIN32
 	const byte sig[] = "\x4C\x89\x4C\x24\x2A\x44\x89\x44\x24\x2A\x89\x54\x24\x2A\x55";
 #else
-	const byte sig[] = "\x55\x49\x89\xFA\x48\x89\xE5\x41\x57\x41\x56\x41\x89\xD6";
+	const byte sig[] = "\x55\x89\xD0\x49\x89\xFA\x89\xF7\x48\x89\xE5";
 #endif
 	g_pLogDirect = (LogDirect_t)serverModule->FindSignature((byte*)sig, sizeof(sig) - 1, err);
 
@@ -238,7 +238,7 @@ const char *CleanerPlugin::GetLicense()
 
 const char *CleanerPlugin::GetVersion()
 {
-	return "1.0.8";
+	return "1.0.9";
 }
 
 const char *CleanerPlugin::GetDate()
