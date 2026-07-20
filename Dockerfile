@@ -28,8 +28,6 @@ ENV RE2_ROOT=/opt/re2
 WORKDIR /src
 COPY . .
 
-# RUN git submodule update --init --recursive
-
 RUN mkdir -p build && cd build && \
     python3 ../configure.py \
         --sdks cs2 \

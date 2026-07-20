@@ -28,7 +28,7 @@ Supports both Windows and Linux.
 
 [Xmake](https://xmake.io/#/getting_started) is used to build the project.
 
-1. Clone the repository and its submodules
+1. Clone the repository and its submodules recusively
 2. Run `xmake` in the root directory of the repository
 
 ### Docker
