@@ -106,13 +106,13 @@ jobs:
         shell: pwsh
         run: |
           git clone --depth 1 -b "$env:RE2_TAG" https://github.com/google/re2 re2src
-          cmake -S re2src -B re2src/build `
+          cmake -S re2src -B re2-build `
             -DBUILD_SHARED_LIBS=OFF `
             -DRE2_BUILD_TESTING=OFF `
             -DCMAKE_POLICY_DEFAULT_CMP0091=NEW `
             -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
             -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/re2-install"
-          cmake --build re2src/build --config Release --target install
+          cmake --build re2-build --config Release --target install
 
       - name: Configure
         run: |
