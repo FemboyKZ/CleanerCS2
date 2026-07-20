@@ -26,6 +26,7 @@
 #include <fstream>
 #include <filesystem>
 #include <vector>
+#include <mutex>
 
 // bruh
 #undef POSIX
@@ -51,9 +52,13 @@ LogDirect_t g_pLogDirect = nullptr;
 funchook_t* g_pHook = nullptr;
 
 std::vector<re2::RE2*> g_RegexList;
+std::mutex g_RegexMutex;
 
 int Detour_LogDirect(void* loggingSystem, int channel, int severity, LeafCodeInfo_t* leafCode, char const* str, va_list* args)
 {
+	if (!str)
+		return g_pLogDirect(loggingSystem, channel, severity, leafCode, str, args);
+
 	char buffer[MAX_LOGGING_MESSAGE_LENGTH];
 
 	if (args)
@@ -64,10 +69,13 @@ int Detour_LogDirect(void* loggingSystem, int channel, int severity, LeafCodeInf
 		va_end(args2);
 	}
 
-	for (auto& regex : g_RegexList)
 	{
-		if (RE2::FullMatch(args ? buffer : str, *regex))
-			return 0;
+		std::lock_guard<std::mutex> lock(g_RegexMutex);
+		for (auto& regex : g_RegexList)
+		{
+			if (RE2::FullMatch(args ? buffer : str, *regex))
+				return 0;
+		}
 	}
 
 	return g_pLogDirect(loggingSystem, channel, severity, leafCode, str, args);
@@ -91,7 +99,7 @@ bool SetupHook()
 		return false;
 	}
 
-	auto g_pHook = funchook_create();
+	g_pHook = funchook_create();
 	funchook_prepare(g_pHook, (void**)&g_pLogDirect, (void*)Detour_LogDirect);
 	funchook_install(g_pHook, 0);
 
@@ -100,6 +108,8 @@ bool SetupHook()
 
 void LoadConfig()
 {
+	std::lock_guard<std::mutex> lock(g_RegexMutex);
+
 	for(auto& regex : g_RegexList)
 		delete regex;
 
@@ -187,17 +197,19 @@ bool CleanerPlugin::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen,
 
 bool CleanerPlugin::Unload(char *error, size_t maxlen)
 {
-	for (auto& regex : g_RegexList)
-		delete regex;
-
-	g_RegexList.clear();
-
 	if (g_pHook)
 	{
 		funchook_uninstall(g_pHook, 0);
 		funchook_destroy(g_pHook);
 		g_pHook = nullptr;
 	}
+
+	std::lock_guard<std::mutex> lock(g_RegexMutex);
+
+	for (auto& regex : g_RegexList)
+		delete regex;
+
+	g_RegexList.clear();
 
 	return true;
 }
