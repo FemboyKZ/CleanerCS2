@@ -1,0 +1,170 @@
+name: Build
+
+on:
+  push:
+    branches: ["*"]
+    tags: ["*"]
+    paths-ignore:
+      - "package/**"
+      - "README.md"
+  pull_request:
+    branches: ["*"]
+    paths-ignore:
+      - "package/**"
+      - "README.md"
+
+env:
+  # Pre-abseil re2 tag, built static so the plugin has no external re2/abseil dep.
+  RE2_TAG: "2022-06-01"
+
+jobs:
+  build-linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    container:
+      image: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          apt-get update -y
+          apt-get install -y --no-install-recommends python3 python3-pip cmake
+          git clone https://github.com/alliedmodders/ambuild.git
+          pip3 install ./ambuild
+
+      - name: Build static re2
+        run: |
+          git clone --depth 1 -b "$RE2_TAG" https://github.com/google/re2 re2src
+          cmake -S re2src -B re2src/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DRE2_BUILD_TESTING=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCMAKE_INSTALL_PREFIX=/opt/re2
+          cmake --build re2src/build -j"$(nproc)" --target install
+
+      - name: Configure
+        run: |
+          mkdir -p build && cd build
+          python3 ../configure.py \
+            --sdks cs2 \
+            --targets x86_64 \
+            --mms_path ../metamod-source \
+            --hl2sdk-manifests ../metamod-source/hl2sdk-manifests \
+            --re2-root /opt/re2 \
+            --enable-optimize
+
+      - name: Build
+        working-directory: build
+        run: ambuild
+
+      - name: Verify no dynamic re2 dependency
+        run: |
+          so=build/package/addons/cleanercs2/bin/linuxsteamrt64/cleanercs2.so
+          ldd "$so" || true
+          if ldd "$so" | grep -qi 're2\|absl'; then
+            echo "::error::plugin links re2/abseil dynamically" && exit 1
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cleanercs2-linux
+          path: build/package
+
+  build-windows:
+    name: Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
+      - name: Install AMBuild
+        run: |
+          git clone https://github.com/alliedmodders/ambuild.git
+          pip install ./ambuild
+
+      - name: Build static re2
+        shell: pwsh
+        run: |
+          git clone --depth 1 -b "$env:RE2_TAG" https://github.com/google/re2 re2src
+          cmake -S re2src -B re2src/build `
+            -DBUILD_SHARED_LIBS=OFF `
+            -DRE2_BUILD_TESTING=OFF `
+            -DCMAKE_POLICY_DEFAULT_CMP0091=NEW `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
+            -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/re2-install"
+          cmake --build re2src/build --config Release --target install
+
+      - name: Configure
+        run: |
+          mkdir -Force build | Out-Null; cd build
+          python ../configure.py `
+            --sdks cs2 `
+            --targets x86_64 `
+            --mms_path ../metamod-source `
+            --hl2sdk-manifests ../metamod-source/hl2sdk-manifests `
+            --re2-root "$env:GITHUB_WORKSPACE/re2-install" `
+            --enable-optimize
+
+      - name: Build
+        working-directory: build
+        run: ambuild
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cleanercs2-windows
+          path: build/package
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: cleanercs2-linux
+          path: cleanercs2-linux
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: cleanercs2-windows
+          path: cleanercs2-windows
+
+      - name: Create archives
+        run: |
+          cd cleanercs2-linux && zip -r ../cleanercs2-${{ github.ref_name }}-linux.zip . && cd ..
+          cd cleanercs2-windows && zip -r ../cleanercs2-${{ github.ref_name }}-windows.zip . && cd ..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            cleanercs2-${{ github.ref_name }}-linux.zip
+            cleanercs2-${{ github.ref_name }}-windows.zip
+          generate_release_notes: true
