@@ -1,0 +1,17 @@
+build/
+output/
+.xmake/
+
+.git
+**/.git
+
+.vscode/
+.vs/
+vsxmake2022/
+*.suo
+*.user
+*.sln
+*.vcxproj*
+
+Thumbs.db
+.DS_Store

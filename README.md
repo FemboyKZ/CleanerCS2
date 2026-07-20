@@ -5,7 +5,7 @@ Supports both Windows and Linux.
 
 ## Example config
 
-```
+```txt
 // Write regular expression in here to prevent them from being printed in the console
 .*UNEXPECTED LONG FRAME DETECTED.*
 .*weapon services didn't find a shoot position.*
@@ -24,7 +24,32 @@ Supports both Windows and Linux.
 
 ## Building from source
 
+### Xmake
+
 [Xmake](https://xmake.io/#/getting_started) is used to build the project.
 
 1. Clone the repository and its submodules
-2. Run xmake in the root directory of the repository
+2. Run `xmake` in the root directory of the repository
+
+### Docker
+
+```sh
+docker compose run --rm --build build
+```
+
+To build without compose:
+
+```sh
+docker build -t cleanercs2-build .
+docker run --rm -v "$PWD/output:/output" cleanercs2-build
+```
+
+### AMBuild
+
+(re2 static at `/opt/re2`):
+
+```sh
+mkdir build && cd build
+python3 ../configure.py --enable-optimize --re2-root /opt/re2
+ambuild
+```

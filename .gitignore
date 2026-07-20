@@ -2,6 +2,9 @@
 .xmake/
 build/
 
+# Docker output
+output/
+
 # MacOS Cache
 .DS_Store
 
