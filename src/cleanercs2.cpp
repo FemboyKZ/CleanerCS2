@@ -250,7 +250,7 @@ const char *CleanerPlugin::GetLicense()
 
 const char *CleanerPlugin::GetVersion()
 {
-	return "1.0.9";
+	return "1.1.0";
 }
 
 const char *CleanerPlugin::GetDate()
@@ -265,7 +265,7 @@ const char *CleanerPlugin::GetLogTag()
 
 const char *CleanerPlugin::GetAuthor()
 {
-	return "Poggu";
+	return "Poggu, (FKZ Fork)";
 }
 
 const char *CleanerPlugin::GetDescription()
