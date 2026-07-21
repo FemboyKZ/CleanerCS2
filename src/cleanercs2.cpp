@@ -80,7 +80,7 @@ int Detour_LogDirect(void* loggingSystem, int channel, int severity, LeafCodeInf
 
 bool SetupHook()
 {
-	auto serverModule = new CModule(ROOTBIN, "tier0");
+	CModule serverModule(ROOTBIN, "tier0");
 
 	int err;
 #ifdef WIN32
@@ -88,7 +88,7 @@ bool SetupHook()
 #else
 	const byte sig[] = "\x55\x89\xD0\x49\x89\xFA\x89\xF7\x48\x89\xE5";
 #endif
-	g_pLogDirect = (LogDirect_t)serverModule->FindSignature((byte*)sig, sizeof(sig) - 1, err);
+	g_pLogDirect = (LogDirect_t)serverModule.FindSignature((byte*)sig, sizeof(sig) - 1, err);
 
 	if (err)
 	{
