@@ -105,12 +105,7 @@ bool SetupHook()
 
 void LoadConfig()
 {
-	std::lock_guard<std::mutex> lock(g_RegexMutex);
-
-	for(auto& regex : g_RegexList)
-		delete regex;
-
-	g_RegexList.clear();
+	std::vector<re2::RE2*> fresh;
 
 	CBufferStringGrowable<MAX_PATH> gameDir;
 	engine->GetGameDir(gameDir);
@@ -148,7 +143,7 @@ void LoadConfig()
 			RE2* re = new RE2(line, options);
 
 			if (re->ok())
-				g_RegexList.push_back(re);
+				fresh.push_back(re);
 			else
 				META_CONPRINTF("[CleanerCS2] Failed to parse regex: '%s': %s\n", line.c_str(), re->error().c_str());
 		}
@@ -158,6 +153,16 @@ void LoadConfig()
 	{
 		META_CONPRINTF("[CleanerCS2] Failed to open config file\n");
 	}
+
+	std::vector<re2::RE2*> old;
+	{
+		std::lock_guard<std::mutex> lock(g_RegexMutex);
+		old.swap(g_RegexList);
+		g_RegexList.swap(fresh);
+	}
+
+	for (auto& regex : old)
+		delete regex;
 }
 
 CON_COMMAND_F(conclear_reload, "Reloads the cleaner config", FCVAR_SPONLY | FCVAR_LINKED_CONCOMMAND)
