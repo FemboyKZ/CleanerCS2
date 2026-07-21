@@ -126,14 +126,14 @@ void LoadConfig()
 		std::string line;
 		while (std::getline(cfgFile, line))
 		{
-			if (line[0] == '/' && line[1] == '/')
-				continue;
+			// allow CRLF on linux
+			line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
 
 			if (line.empty())
 				continue;
 
-			// allow CRLF on linux
-			line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+			if (line[0] == '/' && line[1] == '/')
+				continue;
 
 			META_CONPRINTF("Registering regex: %s\n", line.c_str());
 
