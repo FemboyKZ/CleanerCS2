@@ -14,8 +14,8 @@ on:
       - "README.md"
 
 env:
-  # Pre-abseil re2 tag, built static so the plugin has no external re2/abseil dep.
-  RE2_TAG: "2022-06-01"
+  RE2_TAG: "2025-11-05"
+  ABSEIL_TAG: "20260526.0"
 
 jobs:
   build-linux:
@@ -23,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
+    env:
+      CC: gcc
+      CXX: g++
 
     steps:
       - name: Checkout
@@ -37,16 +40,31 @@ jobs:
           git clone https://github.com/alliedmodders/ambuild.git
           pip3 install ./ambuild
 
-      - name: Build static re2
+      - name: Build static abseil + re2
         run: |
+          ABI_FLAG="-D_GLIBCXX_USE_CXX11_ABI=0"
+          git clone --depth 1 -b "$ABSEIL_TAG" https://github.com/abseil/abseil-cpp abslsrc
+          cmake -S abslsrc -B absl-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_CXX_FLAGS="$ABI_FLAG" \
+            -DABSL_PROPAGATE_CXX_STD=ON \
+            -DABSL_ENABLE_INSTALL=ON \
+            -DCMAKE_INSTALL_PREFIX=/opt/re2
+          cmake --build absl-build -j"$(nproc)" --target install
           git clone --depth 1 -b "$RE2_TAG" https://github.com/google/re2 re2src
-          cmake -S re2src -B re2src/build \
+          cmake -S re2src -B re2-build \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=OFF \
             -DRE2_BUILD_TESTING=OFF \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_CXX_FLAGS="$ABI_FLAG" \
+            -DCMAKE_PREFIX_PATH=/opt/re2 \
             -DCMAKE_INSTALL_PREFIX=/opt/re2
-          cmake --build re2src/build -j"$(nproc)" --target install
+          cmake --build re2-build -j"$(nproc)" --target install
 
       - name: Configure
         run: |
@@ -102,17 +120,32 @@ jobs:
           git clone https://github.com/alliedmodders/ambuild.git
           pip install ./ambuild
 
-      - name: Build static re2
+      - name: Build static abseil + re2
         shell: pwsh
         run: |
+          $prefix = "$env:GITHUB_WORKSPACE/re2-install"
+          git clone --depth 1 -b "$env:ABSEIL_TAG" https://github.com/abseil/abseil-cpp abslsrc
+          cmake -S abslsrc -B absl-build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DBUILD_SHARED_LIBS=OFF `
+            -DCMAKE_CXX_STANDARD=17 `
+            -DABSL_PROPAGATE_CXX_STD=ON `
+            -DABSL_ENABLE_INSTALL=ON `
+            -DABSL_MSVC_STATIC_RUNTIME=ON `
+            -DCMAKE_INSTALL_PREFIX="$prefix"
+          cmake --build absl-build --target install
           git clone --depth 1 -b "$env:RE2_TAG" https://github.com/google/re2 re2src
-          cmake -S re2src -B re2-build `
+          cmake -S re2src -B re2-build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_CXX_COMPILER=cl `
             -DBUILD_SHARED_LIBS=OFF `
             -DRE2_BUILD_TESTING=OFF `
-            -DCMAKE_POLICY_DEFAULT_CMP0091=NEW `
+            -DCMAKE_CXX_STANDARD=17 `
+            -DCMAKE_PREFIX_PATH="$prefix" `
             -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
-            -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/re2-install"
-          cmake --build re2-build --config Release --target install
+            -DCMAKE_INSTALL_PREFIX="$prefix"
+          cmake --build re2-build --target install
 
       - name: Configure
         run: |

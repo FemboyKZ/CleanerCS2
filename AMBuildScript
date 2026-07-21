@@ -1,5 +1,6 @@
 # vim: set sts=2 ts=8 sw=2 tw=99 et ft=python:
 import os
+import glob
 
 
 def resolveEnvPath(env, folder=None):
@@ -185,7 +186,14 @@ class MMSPluginConfig(object):
                 "_CRT_NONSTDC_NO_DEPRECATE",
                 "NOMINMAX",
             ]
-            cxx.cflags += ["/W3", "/std:c++17", "/wd4146", "/wd4244", "/wd4267"]
+            cxx.cflags += [
+                "/W3",
+                "/std:c++17",
+                "/Zc:__cplusplus",
+                "/wd4146",
+                "/wd4244",
+                "/wd4267",
+            ]
             cxx.cxxflags += ["/TP", "/EHsc"]
 
         # Optimization
@@ -220,7 +228,6 @@ class MMSPluginConfig(object):
                 "_LINUX",
                 "POSIX",
                 "_FILE_OFFSET_BITS=64",
-                "_GLIBCXX_USE_CXX11_ABI=1",
             ]
             if cxx.family == "gcc":
                 cxx.linkflags += ["-static-libgcc"]
@@ -256,25 +263,32 @@ class MMSPluginConfig(object):
 
         SdkHelpers.configureCxx(context, binary, sdk)
 
-        # funchook needs distorm, so list it first. re2 pulls in pthread.
+        # funchook needs distorm, so list it first.
         funchook_lib_dir = os.path.join(
             context.currentSourcePath, "vendor", "funchook", "lib", "Release"
         )
+        re2_lib_dir = os.path.join(self.re2_root, "lib")
+
         if cxx.target.platform == "windows":
+            absl_libs = sorted(glob.glob(os.path.join(re2_lib_dir, "absl_*.lib")))
             cxx.linkflags += [
                 os.path.join(funchook_lib_dir, "funchook.lib"),
                 os.path.join(funchook_lib_dir, "distorm.lib"),
-                os.path.join(self.re2_root, "lib", "re2.lib"),
-                "psapi.lib",
+                os.path.join(re2_lib_dir, "re2.lib"),
             ]
+            cxx.linkflags += absl_libs
+            cxx.linkflags += ["psapi.lib", "bcrypt.lib", "advapi32.lib"]
         else:
+            # re2 and abseil have circular refs.
+            absl_libs = sorted(glob.glob(os.path.join(re2_lib_dir, "libabsl_*.a")))
             cxx.linkflags += [
                 os.path.join(funchook_lib_dir, "libfunchook.a"),
                 os.path.join(funchook_lib_dir, "libdistorm.a"),
-                os.path.join(self.re2_root, "lib", "libre2.a"),
-                "-lpthread",
-                "-ldl",
+                "-Wl,--start-group",
+                os.path.join(re2_lib_dir, "libre2.a"),
             ]
+            cxx.linkflags += absl_libs
+            cxx.linkflags += ["-Wl,--end-group", "-lpthread", "-ldl"]
 
         return binary
 

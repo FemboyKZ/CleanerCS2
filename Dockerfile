@@ -10,18 +10,32 @@ RUN apt-get update -y && \
     && pip3 install ./ambuild \
     && rm -rf /var/lib/apt/lists/*
 
-# Build re2 as a static, position-independent lib.
-# Pinned to a pre-abseil tag so there is no transitive abseil dependency to satisfy.
-# Bump only alongside a matching abseil build if you ever need a newer re2.
-RUN git clone --depth 1 -b 2022-06-01 https://github.com/google/re2 /tmp/re2 && \
+ENV CC=gcc CXX=g++
+
+# Build abseil then re2 as static, position-independent libs into a shared prefix.
+RUN git clone --depth 1 -b 20260526.0 https://github.com/abseil/abseil-cpp /tmp/absl && \
+    cmake -S /tmp/absl -B /tmp/absl/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DCMAKE_CXX_STANDARD=17 \
+        -DCMAKE_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=0" \
+        -DABSL_PROPAGATE_CXX_STD=ON \
+        -DABSL_ENABLE_INSTALL=ON \
+        -DCMAKE_INSTALL_PREFIX=/opt/re2 && \
+    cmake --build /tmp/absl/build -j"$(nproc)" --target install && \
+    git clone --depth 1 -b 2025-11-05 https://github.com/google/re2 /tmp/re2 && \
     cmake -S /tmp/re2 -B /tmp/re2/build \
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_SHARED_LIBS=OFF \
         -DRE2_BUILD_TESTING=OFF \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DCMAKE_CXX_STANDARD=17 \
+        -DCMAKE_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=0" \
+        -DCMAKE_PREFIX_PATH=/opt/re2 \
         -DCMAKE_INSTALL_PREFIX=/opt/re2 && \
     cmake --build /tmp/re2/build -j"$(nproc)" --target install && \
-    rm -rf /tmp/re2
+    rm -rf /tmp/re2 /tmp/absl
 
 ENV RE2_ROOT=/opt/re2
 

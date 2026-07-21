@@ -24,12 +24,27 @@ Supports both Windows and Linux.
 
 ## Building from source
 
-### Xmake
+### Locally
 
-[Xmake](https://xmake.io/#/getting_started) is used to build the project.
+Local builds require a static build of [re2](https://github.com/google/re2) and git submodules to be initialized recursively via `git submodule update --init --recursive`.
 
-1. Clone the repository and its submodules recusively
-2. Run `xmake` in the root directory of the repository
+#### Xmake
+
+Requires [Xmake](https://xmake.io/#/getting_started).
+
+```sh
+xmake
+```
+
+#### AMBuild
+
+Requires [AMBuild](https://github.com/alliedmodders/ambuild) on PATH.
+
+```sh
+mkdir build && cd build
+python3 ../configure.py --enable-optimize --re2-root /opt/re2
+ambuild
+```
 
 ### Docker
 
@@ -42,14 +57,4 @@ To build without compose:
 ```sh
 docker build -t cleanercs2-build .
 docker run --rm -v "$PWD/output:/output" cleanercs2-build
-```
-
-### AMBuild
-
-(re2 static at `/opt/re2`):
-
-```sh
-mkdir build && cd build
-python3 ../configure.py --enable-optimize --re2-root /opt/re2
-ambuild
 ```
