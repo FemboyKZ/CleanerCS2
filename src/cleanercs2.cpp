@@ -211,7 +211,7 @@ bool CleanerPlugin::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen,
 	g_SMAPI->AddListener( this, this );
 
 	g_pCVar = icvar;
-	ConVar_Register( FCVAR_RELEASE | FCVAR_CLIENT_CAN_EXECUTE | FCVAR_GAMEDLL );
+	META_CONVAR_REGISTER( FCVAR_RELEASE | FCVAR_CLIENT_CAN_EXECUTE | FCVAR_GAMEDLL );
 
 	LoadConfig();
 
