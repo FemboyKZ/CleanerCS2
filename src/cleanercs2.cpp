@@ -26,6 +26,7 @@
 #include <fstream>
 #include <filesystem>
 #include <vector>
+#include <mutex>
 
 // bruh
 #undef POSIX
@@ -51,6 +52,7 @@ LogDirect_t g_pLogDirect = nullptr;
 funchook_t* g_pHook = nullptr;
 
 std::vector<re2::RE2*> g_RegexList;
+std::mutex g_RegexMutex;
 
 int Detour_LogDirect(void* loggingSystem, int channel, int severity, LeafCodeInfo_t* leafCode, char const* str, va_list* args)
 {
@@ -64,10 +66,13 @@ int Detour_LogDirect(void* loggingSystem, int channel, int severity, LeafCodeInf
 		va_end(args2);
 	}
 
-	for (auto& regex : g_RegexList)
 	{
-		if (RE2::FullMatch(args ? buffer : str, *regex))
-			return 0;
+		std::lock_guard<std::mutex> lock(g_RegexMutex);
+		for (auto& regex : g_RegexList)
+		{
+			if (RE2::FullMatch(args ? buffer : str, *regex))
+				return 0;
+		}
 	}
 
 	return g_pLogDirect(loggingSystem, channel, severity, leafCode, str, args);
@@ -100,6 +105,8 @@ bool SetupHook()
 
 void LoadConfig()
 {
+	std::lock_guard<std::mutex> lock(g_RegexMutex);
+
 	for(auto& regex : g_RegexList)
 		delete regex;
 
@@ -193,6 +200,8 @@ bool CleanerPlugin::Unload(char *error, size_t maxlen)
 		funchook_destroy(g_pHook);
 		g_pHook = nullptr;
 	}
+
+	std::lock_guard<std::mutex> lock(g_RegexMutex);
 
 	for (auto& regex : g_RegexList)
 		delete regex;
