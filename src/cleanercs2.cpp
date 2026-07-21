@@ -97,8 +97,32 @@ bool SetupHook()
 	}
 
 	g_pHook = funchook_create();
-	funchook_prepare(g_pHook, (void**)&g_pLogDirect, (void*)Detour_LogDirect);
-	funchook_install(g_pHook, 0);
+
+	if (!g_pHook)
+	{
+		META_CONPRINTF("[CleanerCS2] Failed to create hook\n");
+		return false;
+	}
+
+	int hookErr = funchook_prepare(g_pHook, (void**)&g_pLogDirect, (void*)Detour_LogDirect);
+
+	if (hookErr != FUNCHOOK_ERROR_SUCCESS)
+	{
+		META_CONPRINTF("[CleanerCS2] Failed to prepare hook: %s\n", funchook_error_message(g_pHook));
+		funchook_destroy(g_pHook);
+		g_pHook = nullptr;
+		return false;
+	}
+
+	hookErr = funchook_install(g_pHook, 0);
+
+	if (hookErr != FUNCHOOK_ERROR_SUCCESS)
+	{
+		META_CONPRINTF("[CleanerCS2] Failed to install hook: %s\n", funchook_error_message(g_pHook));
+		funchook_destroy(g_pHook);
+		g_pHook = nullptr;
+		return false;
+	}
 
 	return true;
 }
