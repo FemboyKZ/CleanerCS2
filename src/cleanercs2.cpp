@@ -91,7 +91,7 @@ bool SetupHook()
 		return false;
 	}
 
-	auto g_pHook = funchook_create();
+	g_pHook = funchook_create();
 	funchook_prepare(g_pHook, (void**)&g_pLogDirect, (void*)Detour_LogDirect);
 	funchook_install(g_pHook, 0);
 
@@ -187,17 +187,17 @@ bool CleanerPlugin::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen,
 
 bool CleanerPlugin::Unload(char *error, size_t maxlen)
 {
-	for (auto& regex : g_RegexList)
-		delete regex;
-
-	g_RegexList.clear();
-
 	if (g_pHook)
 	{
 		funchook_uninstall(g_pHook, 0);
 		funchook_destroy(g_pHook);
 		g_pHook = nullptr;
 	}
+
+	for (auto& regex : g_RegexList)
+		delete regex;
+
+	g_RegexList.clear();
 
 	return true;
 }
