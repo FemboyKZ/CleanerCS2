@@ -113,7 +113,7 @@ int GetModuleInformation(HINSTANCE hModule, void** base, size_t* length)
 			 */
 			//lib.memorySize = PAGE_ALIGN_UP(hdr.p_filesz);
 			*length = PAGE_ALIGN_UP(hdr.p_filesz);
-			*base = (void*)(baseAddr + hdr.p_paddr);
+			*base = (void*)(baseAddr + hdr.p_vaddr);
 
 			break;
 		}
