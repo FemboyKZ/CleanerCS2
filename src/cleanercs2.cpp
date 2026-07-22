@@ -26,6 +26,8 @@
 #include <fstream>
 #include <filesystem>
 #include <vector>
+#include <mutex>
+#include <shared_mutex>
 
 // bruh
 #undef POSIX
@@ -51,6 +53,7 @@ LogDirect_t g_pLogDirect = nullptr;
 funchook_t* g_pHook = nullptr;
 
 std::vector<re2::RE2*> g_RegexList;
+std::shared_mutex g_RegexMutex;
 
 int Detour_LogDirect(void* loggingSystem, int channel, int severity, LeafCodeInfo_t* leafCode, char const* str, va_list* args)
 {
@@ -64,10 +67,13 @@ int Detour_LogDirect(void* loggingSystem, int channel, int severity, LeafCodeInf
 		va_end(args2);
 	}
 
-	for (auto& regex : g_RegexList)
 	{
-		if (RE2::FullMatch(args ? buffer : str, *regex))
-			return 0;
+		std::shared_lock<std::shared_mutex> lock(g_RegexMutex);
+		for (auto& regex : g_RegexList)
+		{
+			if (RE2::FullMatch(args ? buffer : str, *regex))
+				return 0;
+		}
 	}
 
 	return g_pLogDirect(loggingSystem, channel, severity, leafCode, str, args);
@@ -75,7 +81,7 @@ int Detour_LogDirect(void* loggingSystem, int channel, int severity, LeafCodeInf
 
 bool SetupHook()
 {
-	auto serverModule = new CModule(ROOTBIN, "tier0");
+	CModule serverModule(ROOTBIN, "tier0");
 
 	int err;
 #ifdef WIN32
@@ -83,7 +89,7 @@ bool SetupHook()
 #else
 	const byte sig[] = "\x55\x89\xD0\x49\x89\xFA\x89\xF7\x48\x89\xE5";
 #endif
-	g_pLogDirect = (LogDirect_t)serverModule->FindSignature((byte*)sig, sizeof(sig) - 1, err);
+	g_pLogDirect = (LogDirect_t)serverModule.FindSignature((byte*)sig, sizeof(sig) - 1, err);
 
 	if (err)
 	{
@@ -91,19 +97,40 @@ bool SetupHook()
 		return false;
 	}
 
-	auto g_pHook = funchook_create();
-	funchook_prepare(g_pHook, (void**)&g_pLogDirect, (void*)Detour_LogDirect);
-	funchook_install(g_pHook, 0);
+	g_pHook = funchook_create();
+
+	if (!g_pHook)
+	{
+		META_CONPRINTF("[CleanerCS2] Failed to create hook\n");
+		return false;
+	}
+
+	int hookErr = funchook_prepare(g_pHook, (void**)&g_pLogDirect, (void*)Detour_LogDirect);
+
+	if (hookErr != FUNCHOOK_ERROR_SUCCESS)
+	{
+		META_CONPRINTF("[CleanerCS2] Failed to prepare hook: %s\n", funchook_error_message(g_pHook));
+		funchook_destroy(g_pHook);
+		g_pHook = nullptr;
+		return false;
+	}
+
+	hookErr = funchook_install(g_pHook, 0);
+
+	if (hookErr != FUNCHOOK_ERROR_SUCCESS)
+	{
+		META_CONPRINTF("[CleanerCS2] Failed to install hook: %s\n", funchook_error_message(g_pHook));
+		funchook_destroy(g_pHook);
+		g_pHook = nullptr;
+		return false;
+	}
 
 	return true;
 }
 
 void LoadConfig()
 {
-	for(auto& regex : g_RegexList)
-		delete regex;
-
-	g_RegexList.clear();
+	std::vector<re2::RE2*> fresh;
 
 	CBufferStringGrowable<MAX_PATH> gameDir;
 	engine->GetGameDir(gameDir);
@@ -124,14 +151,14 @@ void LoadConfig()
 		std::string line;
 		while (std::getline(cfgFile, line))
 		{
-			if (line[0] == '/' && line[1] == '/')
-				continue;
+			// allow CRLF on linux
+			line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
 
 			if (line.empty())
 				continue;
 
-			// allow CRLF on linux
-			line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+			if (line[0] == '/' && line[1] == '/')
+				continue;
 
 			META_CONPRINTF("Registering regex: %s\n", line.c_str());
 
@@ -141,7 +168,7 @@ void LoadConfig()
 			RE2* re = new RE2(line, options);
 
 			if (re->ok())
-				g_RegexList.push_back(re);
+				fresh.push_back(re);
 			else
 				META_CONPRINTF("[CleanerCS2] Failed to parse regex: '%s': %s\n", line.c_str(), re->error().c_str());
 		}
@@ -151,6 +178,16 @@ void LoadConfig()
 	{
 		META_CONPRINTF("[CleanerCS2] Failed to open config file\n");
 	}
+
+	std::vector<re2::RE2*> old;
+	{
+		std::unique_lock<std::shared_mutex> lock(g_RegexMutex);
+		old.swap(g_RegexList);
+		g_RegexList.swap(fresh);
+	}
+
+	for (auto& regex : old)
+		delete regex;
 }
 
 CON_COMMAND_F(conclear_reload, "Reloads the cleaner config", FCVAR_SPONLY | FCVAR_LINKED_CONCOMMAND)
@@ -172,7 +209,7 @@ bool CleanerPlugin::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen,
 	g_SMAPI->AddListener( this, this );
 
 	g_pCVar = icvar;
-	ConVar_Register( FCVAR_RELEASE | FCVAR_CLIENT_CAN_EXECUTE | FCVAR_GAMEDLL );
+	META_CONVAR_REGISTER( FCVAR_RELEASE | FCVAR_CLIENT_CAN_EXECUTE | FCVAR_GAMEDLL );
 
 	LoadConfig();
 
@@ -187,17 +224,19 @@ bool CleanerPlugin::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen,
 
 bool CleanerPlugin::Unload(char *error, size_t maxlen)
 {
-	for (auto& regex : g_RegexList)
-		delete regex;
-
-	g_RegexList.clear();
-
 	if (g_pHook)
 	{
 		funchook_uninstall(g_pHook, 0);
 		funchook_destroy(g_pHook);
 		g_pHook = nullptr;
 	}
+
+	std::unique_lock<std::shared_mutex> lock(g_RegexMutex);
+
+	for (auto& regex : g_RegexList)
+		delete regex;
+
+	g_RegexList.clear();
 
 	return true;
 }
