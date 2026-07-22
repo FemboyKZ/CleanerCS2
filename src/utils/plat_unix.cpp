@@ -102,7 +102,7 @@ int GetModuleInformation(HINSTANCE hModule, void** base, size_t* length)
 		Elf64_Phdr& hdr = phdr[i];
 
 		/* We only really care about the segment with executable code */
-		if (hdr.p_type == PT_LOAD && hdr.p_flags == (PF_X | PF_R))
+		if (hdr.p_type == PT_LOAD && (hdr.p_flags & PF_X))
 		{
 			/* From glibc, elf/dl-load.c:
 			 * c->mapend = ((ph->p_vaddr + ph->p_filesz + GLRO(dl_pagesize) - 1)
