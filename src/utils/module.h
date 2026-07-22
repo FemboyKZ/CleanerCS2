@@ -86,6 +86,7 @@ public:
 					}
 
 					return_addr = (void *)(pMemory + i);
+					break;
 				}
 			}
 		}
