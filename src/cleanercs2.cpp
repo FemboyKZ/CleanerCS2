@@ -27,6 +27,7 @@
 #include <filesystem>
 #include <vector>
 #include <mutex>
+#include <shared_mutex>
 
 // bruh
 #undef POSIX
@@ -52,7 +53,7 @@ LogDirect_t g_pLogDirect = nullptr;
 funchook_t* g_pHook = nullptr;
 
 std::vector<re2::RE2*> g_RegexList;
-std::mutex g_RegexMutex;
+std::shared_mutex g_RegexMutex;
 
 int Detour_LogDirect(void* loggingSystem, int channel, int severity, LeafCodeInfo_t* leafCode, char const* str, va_list* args)
 {
@@ -70,7 +71,7 @@ int Detour_LogDirect(void* loggingSystem, int channel, int severity, LeafCodeInf
 	}
 
 	{
-		std::lock_guard<std::mutex> lock(g_RegexMutex);
+		std::shared_lock<std::shared_mutex> lock(g_RegexMutex);
 		for (auto& regex : g_RegexList)
 		{
 			if (RE2::FullMatch(args ? buffer : str, *regex))
@@ -183,7 +184,7 @@ void LoadConfig()
 
 	std::vector<re2::RE2*> old;
 	{
-		std::lock_guard<std::mutex> lock(g_RegexMutex);
+		std::unique_lock<std::shared_mutex> lock(g_RegexMutex);
 		old.swap(g_RegexList);
 		g_RegexList.swap(fresh);
 	}
@@ -233,7 +234,7 @@ bool CleanerPlugin::Unload(char *error, size_t maxlen)
 		g_pHook = nullptr;
 	}
 
-	std::lock_guard<std::mutex> lock(g_RegexMutex);
+	std::unique_lock<std::shared_mutex> lock(g_RegexMutex);
 
 	for (auto& regex : g_RegexList)
 		delete regex;
@@ -279,7 +280,7 @@ const char *CleanerPlugin::GetLicense()
 
 const char *CleanerPlugin::GetVersion()
 {
-	return "1.1.1";
+	return "1.1.2";
 }
 
 const char *CleanerPlugin::GetDate()
