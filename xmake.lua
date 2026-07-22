@@ -21,14 +21,12 @@ target("CleanerCS2-Xmake")
     if is_plat("windows") then
         add_links({
             SDK_PATH.."/lib/public/win64/tier0.lib",
-            SDK_PATH.."/lib/public/win64/tier1.lib",
             SDK_PATH.."/lib/public/win64/interfaces.lib",
             SDK_PATH.."/lib/public/win64/mathlib.lib",
         })
     else
         add_links({
             SDK_PATH.."/lib/linux64/libtier0.so",
-            SDK_PATH.."/lib/linux64/tier1.a",
             SDK_PATH.."/lib/linux64/interfaces.a",
             SDK_PATH.."/lib/linux64/mathlib.a",
         })

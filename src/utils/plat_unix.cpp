@@ -1,7 +1,7 @@
 /**
  * =============================================================================
  * CS2Fixes
- * Copyright (C) 2023 Source2ZE
+ * Copyright (C) 2023-2026 Source2ZE
  * =============================================================================
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -102,7 +102,7 @@ int GetModuleInformation(HINSTANCE hModule, void** base, size_t* length)
 		Elf64_Phdr& hdr = phdr[i];
 
 		/* We only really care about the segment with executable code */
-		if (hdr.p_type == PT_LOAD && hdr.p_flags == (PF_X | PF_R))
+		if (hdr.p_type == PT_LOAD && (hdr.p_flags & PF_X))
 		{
 			/* From glibc, elf/dl-load.c:
 			 * c->mapend = ((ph->p_vaddr + ph->p_filesz + GLRO(dl_pagesize) - 1)
@@ -113,7 +113,7 @@ int GetModuleInformation(HINSTANCE hModule, void** base, size_t* length)
 			 */
 			//lib.memorySize = PAGE_ALIGN_UP(hdr.p_filesz);
 			*length = PAGE_ALIGN_UP(hdr.p_filesz);
-			*base = (void*)(baseAddr + hdr.p_paddr);
+			*base = (void*)(baseAddr + hdr.p_vaddr);
 
 			break;
 		}
